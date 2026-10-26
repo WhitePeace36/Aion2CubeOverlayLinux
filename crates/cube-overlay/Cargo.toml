@@ -1,0 +1,28 @@
+[package]
+name = "cube-overlay"
+description = "Aion 2 Hidden Cube radar as a click-through Wayland overlay (layer-shell), with height above or below you"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "aion-cube-overlay"
+path = "src/main.rs"
+
+[dependencies]
+aion-net = { path = "../aion-net" }
+cube-core = { path = "../cube-core" }
+ab_glyph = "0.2"
+anyhow = "1"
+log = "0.4"
+env_logger = { version = "0.11", default-features = false, features = ["auto-color", "humantime"] }
+parking_lot = "0.12"
+pcap = "2"
+serde = "1"
+serde_json = "1"
+signal-hook = "0.3"
+smithay-client-toolkit = { version = "0.21", default-features = false, features = ["calloop"] }
+tiny-skia = { version = "0.12", default-features = false, features = ["std", "simd", "png-format"] }
+
+[dev-dependencies]
+etherparse = "0.21"

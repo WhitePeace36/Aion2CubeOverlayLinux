@@ -1,0 +1,16 @@
+[package]
+name = "aion-net"
+description = "Passive Aion 2 transport decoding: link layer, TCP reassembly, game frames (no UI, no capture driver)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = "1"
+etherparse = "0.21"
+lz4_flex = { version = "0.14", default-features = false, features = ["std", "safe-decode", "safe-encode"] }
+pcap-file = "2"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1"
