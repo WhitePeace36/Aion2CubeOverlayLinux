@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/aion-net", "crates/cube-core", "crates/cube-overlay"]
+members = ["crates/aion-net", "crates/cube-core", "crates/meter-core", "crates/cube-overlay"]
 default-members = ["crates/cube-overlay"]
 
 [workspace.package]

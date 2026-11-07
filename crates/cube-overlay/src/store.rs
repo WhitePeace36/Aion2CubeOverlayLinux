@@ -132,3 +132,115 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 }
+
+/// `$XDG_CONFIG_HOME/aion-cube-overlay`, else `~/.config/aion-cube-overlay`.
+pub fn default_config_dir() -> PathBuf {
+    if let Some(dir) = std::env::var_os("XDG_CONFIG_HOME").filter(|d| !d.is_empty()) {
+        return PathBuf::from(dir).join("aion-cube-overlay");
+    }
+    if let Some(home) = std::env::var_os("HOME").filter(|d| !d.is_empty()) {
+        return PathBuf::from(home).join(".config/aion-cube-overlay");
+    }
+    PathBuf::from("aion-cube-overlay-config")
+}
+
+/// Where the meter window was left, its size and which mode it showed, in `meter.json`.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct MeterSettings {
+    pub x: i32,
+    pub y: i32,
+    pub mode: String,
+    /// Size, 1 = the base layout. Files from before it existed get the default.
+    #[serde(default = "default_scale")]
+    pub scale: f32,
+    #[serde(default)]
+    pub minimized: bool,
+}
+
+/// Both overlays start a quarter larger than their base layout, which reads small on most screens.
+pub const DEFAULT_SCALE: f32 = 1.25;
+
+fn default_scale() -> f32 {
+    DEFAULT_SCALE
+}
+
+impl Default for MeterSettings {
+    fn default() -> Self {
+        MeterSettings { x: 24, y: 560, mode: "5s".into(), scale: DEFAULT_SCALE, minimized: false }
+    }
+}
+
+/// Reads the options file: command line options, one or more per line, `#` starts a comment, and quotes
+/// ('...' or "...") keep spaces together, as in a shell. A missing file is no options.
+pub fn read_options_file(path: &Path) -> anyhow::Result<Vec<String>> {
+    match std::fs::read_to_string(path) {
+        Ok(text) => split_words(&text).map_err(|e| anyhow::anyhow!("{}: {e}", path.display())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(e) => Err(anyhow::anyhow!("{}: {e}", path.display())),
+    }
+}
+
+pub fn split_words(text: &str) -> anyhow::Result<Vec<String>> {
+    let mut words = Vec::new();
+    for line in text.lines() {
+        let mut word: Option<String> = None;
+        let mut quote: Option<char> = None;
+        for ch in line.chars() {
+            match (quote, ch) {
+                (Some(q), c) if c == q => quote = None,
+                (Some(_), c) => word.get_or_insert_with(String::new).push(c),
+                (None, '#') if word.is_none() => break,
+                (None, '\'') | (None, '"') => {
+                    quote = Some(ch);
+                    word.get_or_insert_with(String::new);
+                }
+                (None, c) if c.is_whitespace() => words.extend(word.take()),
+                (None, c) => word.get_or_insert_with(String::new).push(c),
+            }
+        }
+        if quote.is_some() {
+            anyhow::bail!("unclosed quote in: {line}");
+        }
+        words.extend(word);
+    }
+    Ok(words)
+}
+
+impl MeterSettings {
+    pub fn load(path: &Path) -> MeterSettings {
+        read_json(path)
+    }
+
+    pub fn save(&self, path: &Path) -> anyhow::Result<()> {
+        write_atomic(path, &serde_json::to_string_pretty(self)?)
+    }
+}
+
+#[cfg(test)]
+mod meter_settings_tests {
+    use super::*;
+
+    #[test]
+    fn meter_settings_round_trip() {
+        let path = std::env::temp_dir().join(format!("cube-overlay-meter-{}.json", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(MeterSettings::load(&path), MeterSettings::default());
+        let s = MeterSettings { x: 300, y: 40, mode: "dps".into(), scale: 1.6, minimized: true };
+        s.save(&path).unwrap();
+        assert_eq!(MeterSettings::load(&path), s);
+        std::fs::write(&path, r#"{"x": 1, "y": 2, "mode": "damage"}"#).unwrap();
+        assert_eq!(MeterSettings::load(&path).scale, DEFAULT_SCALE, "an older file gets the default size");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn options_file_words() {
+        let text = "--radar-scale 1.5   # bigger radar\n# a comment line\n--alert-cmd 'pw-play \"/usr/share/a b.oga\"' --corner top-right\n";
+        assert_eq!(
+            split_words(text).unwrap(),
+            vec!["--radar-scale", "1.5", "--alert-cmd", "pw-play \"/usr/share/a b.oga\"", "--corner", "top-right"]
+        );
+        assert!(split_words("--alert-cmd 'oops").is_err());
+        assert!(read_options_file(Path::new("/nonexistent/options")).unwrap().is_empty());
+    }
+}

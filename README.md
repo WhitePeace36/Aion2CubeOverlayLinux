@@ -1,15 +1,19 @@
 # aion-cube-overlay
 
-A Hidden Cube radar for Aion 2 on Linux: a small, click-through overlay in a corner of the screen that shows
-where the nearest cube is and **how far above or below you** it is.
+Two overlays for Aion 2 on Linux (Wayland):
+
+- a **Hidden Cube radar**: a small, click-through overlay in a corner of the screen that shows where the nearest
+  cube is and **how far above or below you** it is;
+- a **DPS meter**: its own window, which you drag wherever you like, showing every character's damage on the
+  enemy you are fighting.
 
 ![The overlay during the demo: a new cube 10 m below you, one 2 m above with two more around, one being
 opened by another player, and one right next to you](docs/preview.png)
 
 It reads the game's network traffic, like the Windows tools do. It never sends anything to the game or changes
-it. The cube decoding is the one from [aion2-tui](https://github.com/Ottitsch/aion2-tui) (crates `aion-net` and
-`cube-core`, copied unchanged from commit `028168c`). This project adds Linux capture, the overlay window and the
-height display.
+it. The decoding is the one from [aion2-tui](https://github.com/Ottitsch/aion2-tui) (crates `aion-net`,
+`cube-core` and `meter-core`, copied unchanged from commit `028168c`). This project adds Linux capture, the
+overlay windows, the radar's height display and the per-enemy meter.
 
 ## What it shows
 
@@ -28,6 +32,61 @@ height display.
   game, then stays hidden until a cube is near, and hides again 3 seconds after the last one is gone. Use
   `--always` to keep it up. The bottom line says why nothing shows, for example *map unknown until a loading
   screen* or *no cube type known for this zone yet*.
+
+## DPS meter
+
+![The meter in its three modes during the demo fight](docs/meter.png)
+
+The meter follows **one enemy** and lists every character hitting it, highest first, with a bar in the class's
+colour, the share of the group and the value. Your own row is outlined and always shown, even when it isn't in
+the top rows. Three modes, switched with the tabs:
+
+| Tab | Shows |
+| --- | --- |
+| **Damage** | all damage the character dealt to this enemy |
+| **DPS** | that damage divided by the time the enemy has been under attack (from the first hit anyone landed on it to the last), so every row uses the same clock and the rows add up to the enemy's damage per second |
+| **5 s DPS** | a moving average: the damage dealt to the enemy in the last 5 seconds, divided by 5 (by the fight's length while it is shorter than that) |
+
+- **Which enemy:** the one *you* hit last (`auto`), so switching to an add switches the meter. It goes back to the
+  boss when your enemy dies or you stop hitting it for 15 s. **Click the enemy's name** to pin an enemy of the
+  fight instead (`pinned`); clicking through all of them gets back to `auto`.
+- **The header** shows the enemy's HP, the footer the group total in the mode and how long the enemy has been
+  fought.
+- **—** (top right) minimizes the meter to a single bar: the mode, your rank and value (`#2 you 16.5k/s`, or the
+  leader's when you aren't in the fight) and the group's. The same button opens it again. Below the bar, clicks
+  go through to the game, and the meter remembers being minimized.
+- **↺** ends the fight and clears the meter; the next hit starts a new one. Fights also end on their own: when
+  the boss dies, on a loading screen, after a wipe, or after 20 s without damage in the open world (3 min in a
+  dungeon).
+- **Drag** the meter anywhere by pressing on any part that isn't a button. **Turn the mouse wheel** over it to
+  make it bigger (up) or smaller (down), 10 % a step. It stays above the game and remembers its place, size and
+  mode (`~/.config/aion-cube-overlay/meter.json`). Only the drawn panel takes clicks; the rest goes through to
+  the game.
+- What counts as a player's damage is aion2-tui's decision: summons and spirits are folded into their owner,
+  and false hits (heals, PvP records, hits on dead targets) are dropped. The meter reads it ten times a second,
+  so the time under attack is exact to about 0.1 s.
+
+Options: `--meter-mode damage|dps|5s`, `--meter-pos x,y`, `--meter-scale f`, `--meter-rows n` (default 8),
+`--no-meter`, and `--no-radar` for the meter alone.
+
+## Size
+
+Both overlays start at 1.25 times their base size. If the text is still too small:
+
+- **Meter:** turn the mouse wheel over it. The size is saved.
+- **Radar:** it lets every click through, so it can't be resized with the mouse. Use `--radar-scale 1.6`, or
+  `--scale 1.6` for both. To keep it, put the option in `~/.config/aion-cube-overlay/options`:
+
+  ```sh
+  mkdir -p ~/.config/aion-cube-overlay
+  echo '--radar-scale 1.6' >> ~/.config/aion-cube-overlay/options
+  ```
+
+  That file takes any option from this README, one or more per line, with `#` for comments. Options on the
+  command line come after it, so they win.
+
+On a HiDPI screen with an integer scale (200 %), the compositor's scale is applied on top, so the text stays
+sharp.
 
 ### Limits
 
@@ -51,17 +110,16 @@ Tools that read game traffic may be against the game's terms of service. Use it 
 
 ### Arch, CachyOS, Manjaro
 
-There is a PKGBUILD in `packaging/arch/`. It packages the latest commit of the git repository it sits in, and
-grants the capture permission on install and upgrade, so no `setcap` by hand:
+The repository has its own PKGBUILD. It builds the files as they are on disk, with no cloning or downloading of
+the sources, and grants the capture permission on install and upgrade, so no `setcap` by hand. From the
+repository root:
 
 ```sh
-cd packaging/arch
 makepkg -si
 ```
 
-Only committed changes are built. To build from another copy, for example on GitHub, set
-`AION_CUBE_OVERLAY_REPO=https://github.com/<you>/<repo>.git` before `makepkg`. Updates: commit, then
-`makepkg -si` again.
+After changing something, run `makepkg -si` again. The build output is kept in `src/target`, so rebuilds are
+quick. `src/`, `pkg/` and the package file are ignored by git.
 
 ### Other distributions (or by hand)
 
@@ -97,8 +155,8 @@ Hyprland, or *System Settings › Autostart* in KDE).
 
 | Desktop | How it shows |
 | --- | --- |
-| KDE Plasma (Wayland), Hyprland, Sway, river, niri, Wayfire, COSMIC, labwc | Overlay layer, above the game, clicks go through |
-| GNOME | GNOME has no layer-shell, so it opens as a small borderless window. Drag it with the left button. Right-click, then **Always on Top**. It does take clicks there. |
+| KDE Plasma (Wayland), Hyprland, Sway, river, niri, Wayfire, COSMIC, labwc | Overlay layer, above the game. Clicks go through the radar; the meter is dragged and clicked. |
+| GNOME | GNOME has no layer-shell, so both open as small borderless windows. Drag them with the left button. Right-click, then **Always on Top**. The radar takes clicks there too. |
 
 Run the game in **borderless** or **windowed** mode. Most compositors also draw the overlay layer over true
 fullscreen, but not all.
@@ -113,7 +171,8 @@ fullscreen, but not all.
 --template <n>          treat this object template as a cube, repeatable
 --corner <where>        top-left (default), top, top-right, right, bottom-right, bottom, bottom-left, left
 --margin <x>,<y>        distance from the screen edges (default 24,120)
---scale <f>             size (default 1.0; HiDPI outputs are handled automatically)
+--scale <f>             size of both overlays (default 1.25; HiDPI outputs are handled automatically)
+--radar-scale <f>       size of the radar alone
 --output <name>         monitor, e.g. DP-1
 --range <m>             radar radius in metres (default 100)
 --opacity <f>           background opacity 0 to 1 (default 1)
@@ -121,8 +180,14 @@ fullscreen, but not all.
 --no-spots, --no-trail  less on the radar
 --always                keep the radar up even without cubes
 --alert-cmd <command>   run on a new cube, with CUBE_DISTANCE, CUBE_HEIGHT, CUBE_DIRECTION, CUBE_ALERT set
---window                normal window instead of an overlay
---png <file> [--at <s>] with --demo or --replay: draw one frame to a PNG
+--window                normal windows instead of overlays
+--png <file> [--at <s>] with --demo or --replay: draw one radar frame to a PNG (--meter-png for the meter)
+
+--meter-mode <m>        damage, dps or 5s (default: the mode it was left in, else 5s)
+--meter-pos <x>,<y>     place of the meter (default: where it was left, else 24,560)
+--meter-rows <n>        characters shown at most (default 8)
+--meter-scale <f>       size of the meter (default: as it was left, else 1.25; or the mouse wheel over it)
+--no-meter, --no-radar  only one of the two
 ```
 
 A sound when a cube appears:
@@ -135,8 +200,8 @@ aion-cube-overlay --alert-cmd 'notify-send "Hidden Cube" "$CUBE_DISTANCE m $CUBE
 
 ### Hotkeys
 
-The overlay never takes keyboard focus, so it listens to signals instead: `SIGUSR1` hides or shows it, and
-`SIGUSR2` pins it on.
+The overlay never takes keyboard focus, so it listens to signals instead: `SIGUSR1` hides or shows the radar,
+and `SIGUSR2` pins it on.
 
 ```sh
 # Hyprland (hyprland.conf)
@@ -153,6 +218,8 @@ characters of the name, hence `aion-cube-overl`.)
 
 `~/.local/share/aion-cube-overlay/templates.json` holds learned cube types, and `spots.json` holds the places
 cubes were seen. They use the same format as aion2-tui's, so you can copy those over.
+`~/.config/aion-cube-overlay/meter.json` holds the meter's place, size, mode and whether it is minimized, and
+`~/.config/aion-cube-overlay/options` your standing options (see [Size](#size)).
 
 ## Troubleshooting
 

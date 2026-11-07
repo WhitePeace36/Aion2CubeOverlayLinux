@@ -140,7 +140,8 @@ impl Fonts {
         self.draw_plain(pix, bold, size, x, y, text, color)
     }
 
-    fn draw_plain(&self, pix: &mut Pixmap, bold: bool, size: f32, x: f32, y: f32, text: &str, color: Rgba) -> f32 {
+    /// Draws `text` without the shadow, for text on a solid background.
+    pub fn draw_plain(&self, pix: &mut Pixmap, bold: bool, size: f32, x: f32, y: f32, text: &str, color: Rgba) -> f32 {
         let Some(font) = self.pick(bold) else { return 0.0 };
         let scale = PxScale::from(size);
         let scaled = font.as_scaled(scale);

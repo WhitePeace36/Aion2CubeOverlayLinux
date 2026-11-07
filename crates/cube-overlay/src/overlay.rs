@@ -1,6 +1,8 @@
-//! The overlay's behaviour, independent of Wayland: when to show, banners for alerts, the new cube flash and the
-//! optional alert command.
+//! The overlay's behaviour, independent of Wayland: when to show the radar, banners for alerts, the new cube
+//! flash, the optional alert command, and the DPS meter's state and controls.
 
+use crate::dps::{DpsMeter, Mode};
+use crate::meter_draw::{self, Hit};
 use crate::radar::{self, Banner, Hud, Look, AMBER, GREEN, RED};
 use crate::source::{Health, Source};
 use crate::text::Fonts;
@@ -36,17 +38,45 @@ pub struct Overlay {
     show_until_ms: u64,
     last_health: Option<Health>,
     was_visible: bool,
+    pub dps: DpsMeter,
+    /// Rows the meter shows at most.
+    pub meter_rows: usize,
+    /// Rows the meter drew last, for hit testing.
+    pub meter_shown: usize,
+    /// Height the meter drew last (unscaled), for its input region.
+    pub meter_drawn_h: f32,
+    pub meter_minimized: bool,
 }
 
 impl Overlay {
     pub fn new(source: Box<dyn Source>, look: Look, fonts: Fonts, alert_cmd: Option<String>, visibility: Visibility) -> Overlay {
-        Overlay { source, look, fonts, alert_cmd, visibility, snap: RadarSnapshot::default(), banner: None, flash_from: None, last_wanted_ms: None, wall_ms: 0, show_until_ms: 0, last_health: None, was_visible: false }
+        Overlay {
+            source,
+            look,
+            fonts,
+            alert_cmd,
+            visibility,
+            snap: RadarSnapshot::default(),
+            banner: None,
+            flash_from: None,
+            last_wanted_ms: None,
+            wall_ms: 0,
+            show_until_ms: 0,
+            last_health: None,
+            was_visible: false,
+            dps: DpsMeter::new(Mode::Recent),
+            meter_rows: 8,
+            meter_shown: 1,
+            meter_drawn_h: meter_draw::height(1),
+            meter_minimized: false,
+        }
     }
 
     pub fn step(&mut self, wall_ms: u64) {
         self.wall_ms = wall_ms;
         self.source.step(wall_ms);
         self.snap = self.source.snapshot();
+        self.dps.update(self.source.meter(), self.source.clock_ms());
         for alert in self.source.drain_alerts() {
             self.on_alert(&alert, wall_ms);
         }
@@ -134,6 +164,46 @@ impl Overlay {
             radar::render(pix, scale, &self.snap, &self.look, &self.hud(), &self.fonts);
         } else {
             pix.fill(tiny_skia::Color::TRANSPARENT);
+        }
+    }
+
+    /// Draws the DPS meter.
+    pub fn draw_meter(&mut self, pix: &mut Pixmap, scale: f32) {
+        let view = self.dps.view();
+        let (shown, h) = meter_draw::render(pix, scale, &view, &self.source.status(), self.meter_rows, self.meter_minimized, self.look.opacity, &self.fonts);
+        self.meter_shown = shown;
+        self.meter_drawn_h = h;
+    }
+
+    /// What a click at the meter's layout coordinates does.
+    pub fn meter_hit(&self, x: f32, y: f32) -> Hit {
+        meter_draw::hit(x, y, self.meter_shown, self.meter_minimized)
+    }
+
+    /// A click on the meter's controls. Returns true when the mode or minimized state changed (worth saving).
+    pub fn meter_click(&mut self, hit: Hit) -> bool {
+        match hit {
+            Hit::Mode(mode) => {
+                let changed = self.dps.mode != mode;
+                self.dps.mode = mode;
+                changed
+            }
+            Hit::Target => {
+                self.dps.cycle_target();
+                false
+            }
+            Hit::Minimize => {
+                self.meter_minimized = !self.meter_minimized;
+                log::info!("meter {}", if self.meter_minimized { "minimized" } else { "opened" });
+                true
+            }
+            Hit::Reset => {
+                log::info!("meter reset by hand");
+                self.source.meter_reset();
+                self.dps.clear();
+                false
+            }
+            Hit::Drag | Hit::Outside => false,
         }
     }
 

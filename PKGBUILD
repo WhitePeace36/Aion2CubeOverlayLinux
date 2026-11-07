@@ -18,7 +18,7 @@ _version() {
 }
 pkgver=$(_version)
 pkgrel=1
-pkgdesc='Aion 2 Hidden Cube radar with height above or below you, as a click-through Wayland overlay'
+pkgdesc='Aion 2 Hidden Cube radar (with height) and per-enemy DPS meter as Wayland overlays'
 arch=('x86_64' 'aarch64')
 license=('GPL-3.0-or-later')
 depends=('libpcap' 'libcap' 'gcc-libs' 'glibc')
@@ -61,5 +61,6 @@ package() {
   install -Dm755 "$srcdir/target/release/$pkgname" "$pkgdir/usr/bin/$pkgname"
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
   install -Dm644 docs/preview.png "$pkgdir/usr/share/doc/$pkgname/preview.png"
+  install -Dm644 docs/meter.png "$pkgdir/usr/share/doc/$pkgname/meter.png"
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

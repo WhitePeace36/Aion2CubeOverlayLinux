@@ -1,16 +1,19 @@
-//! Where the radar gets its data: live capture, a saved capture played back at its own pace, or the demo.
+//! Where the radar and the meter get their data: live capture, a saved capture played back at its own pace, or
+//! the demo.
 //!
 //! Live capture opens libpcap on Linux (the `any` pseudo device by default, so it does not matter which
 //! interface the game uses) with a BPF filter on the game port, and feeds every packet through the unchanged
-//! aion2-tui decoder (`aion-net` and `cube-core`). It only reads traffic; nothing is ever sent.
+//! aion2-tui decoders: one TCP reassembly (`aion-net`), then the cube parser (`cube-core`) and the meter's
+//! (`meter-core`) side by side. It only reads traffic; nothing is ever sent.
 
 use crate::store::{SpotStore, TemplateStore};
 use aion_net::net::LinkType;
 use cube_core::cubes::{CubeBook, CubeTemplate};
-use cube_core::parser::Event;
-use cube_core::pipeline::Pipeline;
+use aion_net::pipeline::PacketParser;
 use cube_core::snapshot::{Alert, RadarSnapshot};
 use cube_core::tracker::{Tracker, TrackerConfig};
+use meter_core::combat::Tracker as MeterTracker;
+use meter_core::snapshot::Snapshot as MeterSnapshot;
 use parking_lot::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -39,6 +42,52 @@ pub fn ip_view(link_code: u32, data: &[u8]) -> Option<(LinkType, &[u8])> {
     }
 }
 
+/// Every packet goes to both parsers; each picks out the opcodes it knows (as aion2-tui does).
+#[derive(Default)]
+pub struct Parsers {
+    pub cube: cube_core::parser::Parser,
+    pub meter: meter_core::parser::Parser,
+}
+
+pub enum AnyEvent {
+    Cube(cube_core::parser::Event),
+    Meter(meter_core::parser::Event),
+}
+
+impl PacketParser for Parsers {
+    type Event = AnyEvent;
+
+    fn packet(&mut self, t_ms: u64, opcode: u16, body: &[u8], out: &mut dyn FnMut(AnyEvent)) {
+        self.cube.packet(t_ms, opcode, body, &mut |e| out(AnyEvent::Cube(e)));
+        self.meter.packet(t_ms, opcode, body, &mut |e| out(AnyEvent::Meter(e)));
+    }
+}
+
+pub type Pipeline = aion_net::pipeline::Pipeline<Parsers>;
+
+/// Hands decoded events to their trackers in packet order. `self_hint` is the meter parser's guess of the local
+/// player (its skill use vote), which marks your row until the game names you.
+fn dispatch(events: &mut Vec<AnyEvent>, cube: &Mutex<Tracker>, meter: &Mutex<MeterTracker>, self_hint: Option<u32>) {
+    if events.iter().any(|e| matches!(e, AnyEvent::Cube(_))) {
+        let mut tracker = cube.lock();
+        for e in events.iter() {
+            if let AnyEvent::Cube(e) = e {
+                tracker.push(e);
+            }
+        }
+    }
+    if events.iter().any(|e| matches!(e, AnyEvent::Meter(_))) {
+        let mut tracker = meter.lock();
+        for e in events.iter() {
+            if let AnyEvent::Meter(e) = e {
+                tracker.push(e);
+            }
+        }
+        tracker.set_self_hint(self_hint);
+    }
+    events.clear();
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Health {
     Good,
@@ -63,6 +112,12 @@ pub trait Source {
     fn hint(&self) -> Option<String> {
         None
     }
+    /// The meter's live encounter, or the last one.
+    fn meter(&self) -> Option<MeterSnapshot>;
+    /// Ends the meter's encounter by hand and forgets it (the reset button); the next hit starts a new one.
+    fn meter_reset(&mut self);
+    /// The source's clock in ms: wall time live and in the demo, the capture's time in a replay.
+    fn clock_ms(&self) -> u64;
 }
 
 /// How often the live source logs what it sees.
@@ -107,6 +162,7 @@ pub struct CaptureOptions {
 struct Shared {
     pipeline: Mutex<Pipeline>,
     tracker: Mutex<Tracker>,
+    meter: Mutex<MeterTracker>,
     status: Mutex<Status>,
     live: AtomicBool,
     last_packet_ms: AtomicU64,
@@ -160,6 +216,7 @@ impl Live {
         let shared = Arc::new(Shared {
             pipeline: Mutex::new(Pipeline::new(options.ports.clone())),
             tracker: Mutex::new(tracker),
+            meter: Mutex::new(MeterTracker::default()),
             status: Mutex::new(Status { text: "starting capture".into(), health: Health::Waiting }),
             live: AtomicBool::new(false),
             last_packet_ms: AtomicU64::new(0),
@@ -184,7 +241,7 @@ impl Live {
 }
 
 fn capture_loop(shared: Arc<Shared>, mut capture: pcap::Capture<pcap::Active>, link_code: u32) {
-    let mut events: Vec<Event> = Vec::new();
+    let mut events: Vec<AnyEvent> = Vec::new();
     let mut packets: u64 = 0;
     loop {
         match capture.next_packet() {
@@ -199,20 +256,17 @@ fn capture_loop(shared: Arc<Shared>, mut capture: pcap::Capture<pcap::Active>, l
                 let t_ms = (ts.tv_sec as i64 * 1000 + ts.tv_usec as i64 / 1000).max(1) as u64;
                 shared.last_packet_ms.fetch_max(t_ms, Ordering::Relaxed);
                 let Some((link, data)) = ip_view(link_code, packet.data) else { continue };
-                let has_flow = {
+                let (has_flow, self_hint) = {
                     let mut pipe = shared.pipeline.lock();
                     pipe.push(link, t_ms, data, &mut |event| events.push(event));
-                    pipe.has_game_flow()
+                    (pipe.has_game_flow(), pipe.parser.meter.stats.hint_self_id)
                 };
                 if has_flow && !shared.live.swap(true, Ordering::SeqCst) {
                     log::info!("game traffic seen");
                     *shared.status.lock() = Status { text: "reading the game".into(), health: Health::Good };
                 }
                 if !events.is_empty() {
-                    let mut tracker = shared.tracker.lock();
-                    for e in events.drain(..) {
-                        tracker.push(&e);
-                    }
+                    dispatch(&mut events, &shared.tracker, &shared.meter, self_hint);
                 }
             }
             Err(pcap::Error::TimeoutExpired) => {}
@@ -235,6 +289,7 @@ impl Source for Live {
             pipe.expire_flows(now, FLOW_IDLE_MS);
             pipe.has_game_flow()
         };
+        self.shared.meter.lock().tick(now);
         if !has_flow && self.shared.live.swap(false, Ordering::SeqCst) {
             let mut status = self.shared.status.lock();
             if status.health == Health::Good {
@@ -300,6 +355,21 @@ impl Source for Live {
     fn hint(&self) -> Option<String> {
         self.hint.clone()
     }
+
+    fn meter(&self) -> Option<MeterSnapshot> {
+        self.shared.meter.lock().snapshot()
+    }
+
+    fn meter_reset(&mut self) {
+        let mut meter = self.shared.meter.lock();
+        // Once to end a running encounter, once more to forget it.
+        meter.reset();
+        meter.reset();
+    }
+
+    fn clock_ms(&self) -> u64 {
+        self.last_tick_ms
+    }
 }
 
 /// A saved pcap or pcapng capture, played back at its own pace (times `speed`), so the overlay behaves as it
@@ -308,7 +378,8 @@ pub struct Replay {
     packets: Vec<(u32, u64, Vec<u8>)>,
     next: usize,
     pipeline: Pipeline,
-    tracker: Tracker,
+    tracker: Mutex<Tracker>,
+    meter: Mutex<MeterTracker>,
     first_ms: u64,
     started_wall_ms: Option<u64>,
     speed: f64,
@@ -333,7 +404,8 @@ impl Replay {
             packets,
             next: 0,
             pipeline: Pipeline::new(ports),
-            tracker: Tracker::new(TrackerConfig::default(), book),
+            tracker: Mutex::new(Tracker::new(TrackerConfig::default(), book)),
+            meter: Mutex::new(MeterTracker::default()),
             first_ms,
             started_wall_ms: None,
             speed: speed.max(0.01),
@@ -356,25 +428,39 @@ impl Source for Replay {
         while let Some((code, t_ms, data)) = self.packets.get(self.next).filter(|p| p.1 <= target) {
             if let Some((link, data)) = ip_view(*code, data) {
                 self.pipeline.push(link, *t_ms, data, &mut |e| events.push(e));
+                dispatch(&mut events, &self.tracker, &self.meter, self.pipeline.parser.meter.stats.hint_self_id);
             }
             self.next += 1;
-        }
-        for e in &events {
-            self.tracker.push(e);
         }
         if !self.done() {
             self.now_ms = target;
         }
-        self.tracker.tick(self.now_ms);
-        self.alerts.extend(self.tracker.drain_alerts());
+        let tracker = self.tracker.get_mut();
+        tracker.tick(self.now_ms);
+        self.alerts.extend(tracker.drain_alerts());
+        self.meter.get_mut().tick(self.now_ms);
     }
 
     fn snapshot(&self) -> RadarSnapshot {
-        self.tracker.snapshot(self.now_ms)
+        self.tracker.lock().snapshot(self.now_ms)
     }
 
     fn drain_alerts(&mut self) -> Vec<Alert> {
         std::mem::take(&mut self.alerts)
+    }
+
+    fn meter(&self) -> Option<MeterSnapshot> {
+        self.meter.lock().snapshot()
+    }
+
+    fn meter_reset(&mut self) {
+        let meter = self.meter.get_mut();
+        meter.reset();
+        meter.reset();
+    }
+
+    fn clock_ms(&self) -> u64 {
+        self.now_ms
     }
 
     fn status(&self) -> Status {

@@ -16,6 +16,9 @@ use cube_core::parser::{EntityId, Event, PositionSource, RemoveReason};
 use cube_core::snapshot::{Alert, RadarSnapshot};
 use cube_core::spots::Spot;
 use cube_core::tracker::{Tracker, TrackerConfig};
+use crate::meter_demo::MeterDemo;
+use meter_core::combat::Tracker as MeterTracker;
+use meter_core::snapshot::Snapshot as MeterSnapshot;
 
 pub const ROUND_MS: u64 = 75_000;
 const VERTERON: u32 = 1010;
@@ -107,6 +110,9 @@ pub struct Demo {
     next: usize,
     now_ms: u64,
     alerts: Vec<Alert>,
+    meter_demo: MeterDemo,
+    meter: MeterTracker,
+    meter_events: Vec<meter_core::parser::Event>,
 }
 
 impl Demo {
@@ -114,7 +120,19 @@ impl Demo {
         let c_created = now_ms + SERVER_AHEAD_MS - 400_000;
         let mut tracker = Tracker::new(TrackerConfig::default(), book);
         tracker.set_spots(earlier_spots(now_ms));
-        Demo { tracker, base_ms: now_ms, round: 0, c_created, events: script(now_ms, 0, c_created), next: 0, now_ms, alerts: Vec::new() }
+        Demo {
+            tracker,
+            base_ms: now_ms,
+            round: 0,
+            c_created,
+            events: script(now_ms, 0, c_created),
+            next: 0,
+            now_ms,
+            alerts: Vec::new(),
+            meter_demo: MeterDemo::new(now_ms),
+            meter: MeterTracker::default(),
+            meter_events: Vec::new(),
+        }
     }
 }
 
@@ -136,6 +154,11 @@ impl Source for Demo {
         }
         self.tracker.tick(now_ms);
         self.alerts.extend(self.tracker.drain_alerts());
+        self.meter_demo.advance(now_ms, &mut self.meter_events);
+        for e in self.meter_events.drain(..) {
+            self.meter.push(&e);
+        }
+        self.meter.tick(now_ms);
     }
 
     fn snapshot(&self) -> RadarSnapshot {
@@ -148,6 +171,19 @@ impl Source for Demo {
 
     fn status(&self) -> Status {
         Status { text: format!("demo data, round {}", self.round + 1), health: Health::Good }
+    }
+
+    fn meter(&self) -> Option<MeterSnapshot> {
+        self.meter.snapshot()
+    }
+
+    fn meter_reset(&mut self) {
+        self.meter.reset();
+        self.meter.reset();
+    }
+
+    fn clock_ms(&self) -> u64 {
+        self.now_ms
     }
 }
 

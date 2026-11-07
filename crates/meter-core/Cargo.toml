@@ -1,0 +1,19 @@
+[package]
+name = "meter-core"
+description = "Passive Aion 2 packet decoding and combat tracking (no UI, no capture driver)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+aion-net = { path = "../aion-net" }
+anyhow = "1"
+etherparse = "0.21"
+lz4_flex = { version = "0.14", default-features = false, features = ["std", "safe-decode", "safe-encode"] }
+pcap-file = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[[bin]]
+name = "replay"
+path = "src/bin/replay.rs"

@@ -240,6 +240,7 @@ dependencies = [
  "env_logger",
  "etherparse",
  "log",
+ "meter-core",
  "parking_lot",
  "pcap",
  "serde",
@@ -503,6 +504,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b0ca1155a9ecc25aa12e8313a119f32edf0255fea2f44839c4ac0a12b2ac157"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "meter-core"
+version = "0.1.0"
+dependencies = [
+ "aion-net",
+ "anyhow",
+ "etherparse",
+ "lz4_flex",
+ "pcap-file",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

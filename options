@@ -1,0 +1,96 @@
+# aion-cube-overlay options
+#
+# Location: ~/.config/aion-cube-overlay/options (the program writes this file there on its first start if
+# there is none).
+#
+# Every line that isn't a comment is read as command-line options, so remove the "# " in front of a line to
+# turn it on. Options typed on the command line come after this file and win. Values with spaces go in quotes,
+# as in a shell. Everything below is commented out, so as it stands this file changes nothing.
+#
+# The meter's place, size, mode and minimized state are not set here: the meter remembers them by itself in
+# ~/.config/aion-cube-overlay/meter.json. The --meter-* options below override them at start.
+
+
+# ==== Size =====================================================================================================
+# Default 1.25 for both. The meter can also be resized with the mouse wheel over it.
+
+# Both overlays:
+# --scale 1.5
+
+# The radar alone (it lets clicks through, so the mouse wheel can't resize it):
+# --radar-scale 1.6
+
+# The meter alone, at start:
+# --meter-scale 1.5
+
+
+# ==== Radar ====================================================================================================
+
+# Screen corner: top-left (default), top, top-right, right, bottom-right, bottom, bottom-left, left
+# --corner top-left
+
+# Distance from the screen edges in pixels, horizontal,vertical (default 24,120):
+# --margin 24,120
+
+# Radar radius in metres (default 100; the game sends cubes within about 100 m):
+# --range 100
+
+# Background opacity of both overlays, 0 to 1 (default 1):
+# --opacity 0.5
+
+# Turn the map if the radar turns out rotated compared with the in-game map (default 0):
+# --north-offset 90
+
+# Don't draw the spots where cubes were seen before, or your path:
+# --no-spots
+# --no-trail
+
+# Keep the radar up even without a cube nearby (default: it shows itself when a cube is near):
+# --always
+
+# Run a command when a cube appears. It gets CUBE_DISTANCE, CUBE_HEIGHT, CUBE_DIRECTION and CUBE_ALERT:
+# --alert-cmd 'pw-play /usr/share/sounds/freedesktop/stereo/bell.oga'
+# --alert-cmd 'notify-send "Hidden Cube" "$CUBE_DISTANCE m $CUBE_DIRECTION, height $CUBE_HEIGHT m"'
+
+# Treat this object template as a cube (repeatable; cube types you open with a key are learned anyway):
+# --template 1200039
+
+
+# ==== DPS meter ================================================================================================
+
+# Mode at start: damage, dps (damage / time the enemy was attacked) or 5s (moving average of the last 5 s):
+# --meter-mode 5s
+
+# Place at start, x,y in pixels from the top left corner of the screen:
+# --meter-pos 24,560
+
+# Characters shown at most (default 8):
+# --meter-rows 8
+
+# Only one of the two overlays:
+# --no-meter
+# --no-radar
+
+
+# ==== Screen and window ========================================================================================
+
+# Monitor to show the overlays on, as your compositor names it (wlr-randr, hyprctl monitors, kscreen-doctor -o):
+# --output DP-1
+
+# Normal windows instead of overlays (GNOME gets them anyway, as it has no layer-shell):
+# --window
+
+# Font for the text (default: fontconfig's sans-serif):
+# --font /usr/share/fonts/noto/NotoSans-Regular.ttf
+
+
+# ==== Capture ==================================================================================================
+
+# Capture on one interface only (default: all of them):
+# --interface enp5s0
+
+# Game port, repeatable (default 13328):
+# --port 13328
+
+# Where learned cube types and cube spots are kept (default ~/.local/share/aion-cube-overlay):
+# --data-dir /home/you/.local/share/aion-cube-overlay
