@@ -1,0 +1,15 @@
+#!/bin/sh
+# Lets the overlay read the game's traffic without running as root. A .deb cannot carry file capabilities,
+# so they are set here on every install and upgrade, like wireshark does for dumpcap.
+set -e
+
+if [ "$1" = "configure" ]; then
+    if command -v setcap >/dev/null 2>&1 && setcap cap_net_raw,cap_net_admin=eip /usr/bin/aion-cube-overlay; then
+        echo ">>> Start it with: aion-cube-overlay   (aion-cube-overlay --demo to try it without the game)"
+    else
+        echo ">>> Could not grant the capture permission. Run:"
+        echo ">>>   sudo setcap cap_net_raw,cap_net_admin=eip /usr/bin/aion-cube-overlay"
+    fi
+fi
+
+exit 0

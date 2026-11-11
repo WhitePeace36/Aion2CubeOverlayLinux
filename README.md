@@ -121,6 +121,34 @@ makepkg -si
 After changing something, run `makepkg -si` again. The build output is kept in `src/target`, so rebuilds are
 quick. `src/`, `pkg/` and the package file are ignored by git.
 
+### Debian, Ubuntu, Mint, Pop!_OS (.deb)
+
+Build the package with [cargo-deb](https://github.com/kornelski/cargo-deb) and install it. It grants the capture
+permission on install and upgrade, so no `setcap` by hand. From the repository root:
+
+```sh
+sudo apt install libpcap-dev build-essential
+cargo install cargo-deb
+cargo deb -p cube-overlay
+sudo apt install ./target/debian/aion-cube-overlay_*.deb
+```
+
+### Fedora, Nobara, openSUSE (.rpm)
+
+Build the package with [cargo-generate-rpm](https://github.com/cat-in-136/cargo-generate-rpm) and install it. The
+capture permission is part of the package, so no `setcap` by hand. From the repository root:
+
+```sh
+sudo dnf install libpcap-devel          # openSUSE: sudo zypper install libpcap-devel
+cargo install cargo-generate-rpm
+cargo build --release
+cargo generate-rpm -p crates/cube-overlay
+sudo dnf install ./target/generate-rpm/aion-cube-overlay-*.rpm   # openSUSE: sudo zypper install ./target/...
+```
+
+Build the package on the distribution (and release) you install it on: a binary built on a newer system may
+need a newer glibc than an older one has.
+
 ### Other distributions (or by hand)
 
 You need Rust (from https://rustup.rs or your distribution) and the libpcap headers:

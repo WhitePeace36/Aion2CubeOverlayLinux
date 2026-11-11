@@ -27,3 +27,47 @@ tiny-skia = { version = "0.12", default-features = false, features = ["std", "si
 
 [dev-dependencies]
 etherparse = "0.21"
+
+# .deb package, built with cargo-deb from the repository root:  cargo deb -p cube-overlay
+# Paths here are relative to this crate; target/release/ is mapped to the real build directory.
+[package.metadata.deb]
+name = "aion-cube-overlay"
+maintainer = "timon <timon2201@gmail.com>"
+copyright = "aion-cube-overlay authors; decoding from aion2-tui (https://github.com/Ottitsch/aion2-tui)"
+license-file = ["../../LICENSE", "0"]
+extended-description = """\
+Two Wayland overlays for Aion 2: a click-through Hidden Cube radar that shows how far above or below you \
+each cube is, and a per-enemy DPS meter. It reads the game's network traffic and never sends anything to \
+the game."""
+section = "games"
+priority = "optional"
+# $auto finds the shared libraries (libpcap); libcap2-bin brings setcap for the postinst script.
+depends = "$auto, libcap2-bin"
+recommends = "fontconfig, fonts-noto-core | fonts-dejavu-core"
+suggests = "pipewire-bin, libnotify-bin"
+# postinst grants the capture permission, since a .deb cannot carry file capabilities.
+maintainer-scripts = "../../packaging/deb/"
+assets = [
+    ["target/release/aion-cube-overlay", "usr/bin/", "755"],
+    ["../../README.md", "usr/share/doc/aion-cube-overlay/", "644"],
+    ["../../docs/preview.png", "usr/share/doc/aion-cube-overlay/", "644"],
+    ["../../docs/meter.png", "usr/share/doc/aion-cube-overlay/", "644"],
+]
+
+# .rpm package, built from the repository root with:
+#   cargo build --release && cargo generate-rpm -p crates/cube-overlay
+# Paths are tried from the repository root first. The capture permission travels in the package itself (caps).
+[package.metadata.generate-rpm]
+name = "aion-cube-overlay"
+summary = "Aion 2 Hidden Cube radar (with height) and per-enemy DPS meter as Wayland overlays"
+url = "https://github.com/WhitePeace36/Aion2CubeOverlayLinux"
+assets = [
+    { source = "target/release/aion-cube-overlay", dest = "/usr/bin/aion-cube-overlay", mode = "755", caps = "cap_net_raw,cap_net_admin=eip" },
+    { source = "README.md", dest = "/usr/share/doc/aion-cube-overlay/README.md", mode = "644", doc = true },
+    { source = "docs/preview.png", dest = "/usr/share/doc/aion-cube-overlay/preview.png", mode = "644", doc = true },
+    { source = "docs/meter.png", dest = "/usr/share/doc/aion-cube-overlay/meter.png", mode = "644", doc = true },
+    { source = "LICENSE", dest = "/usr/share/licenses/aion-cube-overlay/LICENSE", mode = "644", doc = true },
+]
+
+[package.metadata.generate-rpm.recommends]
+fontconfig = "*"
