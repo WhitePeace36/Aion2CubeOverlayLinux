@@ -44,11 +44,11 @@ DATA (live capture by default; needs cap_net_raw, see README):
 LOOK:
   --corner <where>        top-left (default), top, top-right, right, bottom-right, bottom, bottom-left, left
   --margin <x>,<y>        distance from the screen edges in pixels (default 24,120)
-  --scale <f>             size of both overlays (default 1.25; 1.5 or 2 for bigger text)
-  --radar-scale <f>       size of the radar alone
+  --scale <f>             size of both overlays (default 1.25 for the meter, 1 for the radar; 1.5 or 2 for bigger text)
+  --radar-scale <f>       size of the radar alone (default 1)
   --output <name>         monitor to show it on (default: the compositor's choice)
   --range <m>             radar radius in metres (default 100, the game sends cubes within about 100 m)
-  --opacity <f>           background opacity, 0 to 1 (default 1)
+  --opacity <f>           background opacity, 0 to 1 (default 0.5)
   --north-offset <deg>    turn the map, if north turns out not to be the game's north (default 0)
   --no-spots              do not draw the spots where cubes were seen before
   --no-trail              do not draw your path
@@ -270,7 +270,7 @@ fn run(o: Options) -> anyhow::Result<()> {
     let options = WindowOptions {
         corner: o.corner,
         margin: o.margin,
-        scale: o.radar_scale.or(o.scale).unwrap_or(store::DEFAULT_SCALE),
+        scale: o.radar_scale.or(o.scale).unwrap_or(store::DEFAULT_RADAR_SCALE),
         output: o.output.clone(),
         force_window: o.window,
         radar: o.radar,
@@ -291,7 +291,7 @@ fn write_png(overlay: &mut Overlay, o: &Options, start: u64) -> anyhow::Result<(
     if overlay.visibility == Visibility::Auto && !overlay.visible() {
         overlay.visibility = Visibility::Always;
     }
-    let radar_scale = o.radar_scale.or(o.scale).unwrap_or(store::DEFAULT_SCALE);
+    let radar_scale = o.radar_scale.or(o.scale).unwrap_or(store::DEFAULT_RADAR_SCALE);
     let meter_scale = o.meter_scale.or(o.scale).unwrap_or(store::DEFAULT_SCALE);
     if let Some(path) = &o.png {
         let w = (radar::BASE_W * radar_scale).round() as u32;

@@ -160,6 +160,9 @@ pub struct MeterSettings {
 /// Both overlays start a quarter larger than their base layout, which reads small on most screens.
 pub const DEFAULT_SCALE: f32 = 1.25;
 
+/// The radar alone starts at its base size, unless --radar-scale or --scale says otherwise.
+pub const DEFAULT_RADAR_SCALE: f32 = 1.0;
+
 fn default_scale() -> f32 {
     DEFAULT_SCALE
 }

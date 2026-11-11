@@ -50,7 +50,7 @@ pub struct Look {
 
 impl Default for Look {
     fn default() -> Self {
-        Look { range_m: 100.0, opacity: 1.0, north_offset_deg: 0.0, show_spots: true, show_trail: true }
+        Look { range_m: 100.0, opacity: 0.5, north_offset_deg: 0.0, show_spots: true, show_trail: true }
     }
 }
 

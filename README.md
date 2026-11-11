@@ -71,7 +71,7 @@ Options: `--meter-mode damage|dps|5s`, `--meter-pos x,y`, `--meter-scale f`, `--
 
 ## Size
 
-Both overlays start at 1.25 times their base size. If the text is still too small:
+The meter starts at 1.25 times its base size, the radar at its base size (1). If the text is still too small:
 
 - **Meter:** turn the mouse wheel over it. The size is saved.
 - **Radar:** it lets every click through, so it can't be resized with the mouse. Use `--radar-scale 1.6`, or
@@ -171,11 +171,11 @@ fullscreen, but not all.
 --template <n>          treat this object template as a cube, repeatable
 --corner <where>        top-left (default), top, top-right, right, bottom-right, bottom, bottom-left, left
 --margin <x>,<y>        distance from the screen edges (default 24,120)
---scale <f>             size of both overlays (default 1.25; HiDPI outputs are handled automatically)
---radar-scale <f>       size of the radar alone
+--scale <f>             size of both overlays (default 1.25 for the meter, 1 for the radar; HiDPI outputs are handled automatically)
+--radar-scale <f>       size of the radar alone (default 1)
 --output <name>         monitor, e.g. DP-1
 --range <m>             radar radius in metres (default 100)
---opacity <f>           background opacity 0 to 1 (default 1)
+--opacity <f>           background opacity 0 to 1 (default 0.5)
 --north-offset <deg>    turn the map if north turns out to be elsewhere
 --no-spots, --no-trail  less on the radar
 --always                keep the radar up even without cubes

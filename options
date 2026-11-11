@@ -12,7 +12,7 @@
 
 
 # ==== Size =====================================================================================================
-# Default 1.25 for both. The meter can also be resized with the mouse wheel over it.
+# Default 1.25 for the meter, 1 for the radar. The meter can also be resized with the mouse wheel over it.
 
 # Both overlays:
 # --scale 1.5
@@ -35,8 +35,8 @@
 # Radar radius in metres (default 100; the game sends cubes within about 100 m):
 # --range 100
 
-# Background opacity of both overlays, 0 to 1 (default 1):
-# --opacity 0.5
+# Background opacity of both overlays, 0 to 1 (default 0.5):
+# --opacity 1
 
 # Turn the map if the radar turns out rotated compared with the in-game map (default 0):
 # --north-offset 90
