@@ -3,3 +3,5 @@ target/
 /src/
 /pkg/
 *.pkg.tar.*
+# packaging/build-packages.sh
+/dist/

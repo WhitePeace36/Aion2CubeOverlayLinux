@@ -149,6 +149,19 @@ sudo dnf install ./target/generate-rpm/aion-cube-overlay-*.rpm   # openSUSE: sud
 Build the package on the distribution (and release) you install it on: a binary built on a newer system may
 need a newer glibc than an older one has.
 
+### Building the .deb and .rpm from any distribution
+
+`packaging/build-packages.sh` builds both packages in containers (podman or docker), so they work on those
+distributions even when you build them on Arch or CachyOS. They land in `dist/`:
+
+```sh
+packaging/build-packages.sh          # both; or: deb, rpm
+```
+
+The .deb is built on Debian 13 (trixie) and installs on Debian 13 and newer and on Ubuntu releases with glibc
+2.41 or newer (25.04 and later). The .rpm is built on Fedora 44 and installs on Fedora 44 and newer.
+`DEB_IMAGE` and `RPM_IMAGE` pick other images.
+
 ### Other distributions (or by hand)
 
 You need Rust (from https://rustup.rs or your distribution) and the libpcap headers:
